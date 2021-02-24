@@ -16,6 +16,8 @@ sdist
 develop-eggs
 .installed.cfg
 lib64
+venv
+
 
 # Installer logs
 pip-log.txt
