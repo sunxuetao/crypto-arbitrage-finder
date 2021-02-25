@@ -17,6 +17,7 @@ develop-eggs
 .installed.cfg
 lib64
 venv
+.idea
 
 
 # Installer logs

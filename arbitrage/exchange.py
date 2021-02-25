@@ -2,13 +2,13 @@ import time
 import urllib.request
 import urllib.error
 import urllib.parse
-import config2
 import logging
 import sys
+
+from arbitrage import config
 from fiatconverter import FiatConverter
 from utils import log_exception
 import traceback
-import config2
 import threading
 
 class Exchange_V2(object):
@@ -40,7 +40,7 @@ class Exchange_V2(object):
         timediff = time.time() - self.depth_updated
         # logging.warn('Market: %s order book2:(%s>%s)', self.name, timediff, self.depth_updated)
 
-        if timediff > config2.market_expiration_time:
+        if timediff > config.market_expiration_time:
             # logging.warn('Market: %s order book is expired(%s>%s)', self.name, timediff, config.market_expiration_time)
             self.depth = {'asks': [{'price': 0, 'amount': 0}], 'bids': [
                 {'price': 0, 'amount': 0}]}
@@ -54,10 +54,10 @@ class Exchange_V2(object):
                 order["price"] = self.fc.convert(order["price"], self.currency, "CNY")
 
     def subscribe_depth(self):
-        if config2.SUPPORT_ZMQ:
+        if config.SUPPORT_ZMQ:
             t = threading.Thread(target = self.subscribe_zmq_depth)
             t.start()  
-        elif config2.SUPPORT_WEBSOCKET:
+        elif config.SUPPORT_WEBSOCKET:
             t = threading.Thread(target = self.subscribe_websocket_depth)
             t.start()
         else:
@@ -66,7 +66,7 @@ class Exchange_V2(object):
     def subscribe_zmq_depth(self):
         import lib.push as push
 
-        push_s = push.Push(config2.ZMQ_PORT)
+        push_s = push.Push(config.ZMQ_PORT)
         push_s.msg_server()
 
     def subscribe_websocket_depth(self):
@@ -90,7 +90,7 @@ class Exchange_V2(object):
 
             socketIO.emit('land', {'app': 'haobtcnotify', 'events':[self.event]});
 
-        with SocketIO(config2.WEBSOCKET_HOST, port=config2.WEBSOCKET_PORT) as socketIO:
+        with SocketIO(config.WEBSOCKET_HOST, port=config.WEBSOCKET_PORT) as socketIO:
 
             socketIO.on('connect', on_connect)
             socketIO.on('message', on_message)
