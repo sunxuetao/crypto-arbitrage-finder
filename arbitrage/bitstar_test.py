@@ -3,10 +3,10 @@
 import decimal
 
 from lib.bitstar_sdk import ApiClient
-import config2
+import config
 
-API_KEY = config2.BITSTAR_API_KEY
-API_SECRET = config2.BITSTAR_SECRET_TOKEN
+API_KEY = config.BITSTAR_API_KEY
+API_SECRET = config.BITSTAR_SECRET_TOKEN
 
 def main():
     client = ApiClient(API_KEY, API_SECRET)

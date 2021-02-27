@@ -4,8 +4,7 @@ import urllib.error
 import urllib.parse
 import logging
 import sys
-
-from arbitrage import config
+import config
 from fiatconverter import FiatConverter
 from utils import log_exception
 import traceback
@@ -13,7 +12,7 @@ import threading
 
 class Exchange_V2(object):
     def __init__(self, exchange):
-        self.name = self.__class__.__name__
+        self.name = exchange.id
         self.exchange = exchange
         # self.pair_code = pair_code
         self.depth_updated = 0
@@ -41,9 +40,8 @@ class Exchange_V2(object):
         # logging.warn('Market: %s order book2:(%s>%s)', self.name, timediff, self.depth_updated)
 
         if timediff > config.market_expiration_time:
-            # logging.warn('Market: %s order book is expired(%s>%s)', self.name, timediff, config.market_expiration_time)
-            self.depth = {'asks': [{'price': 0, 'amount': 0}], 'bids': [
-                {'price': 0, 'amount': 0}]}
+            logging.warn('Market: %s order book is expired(%s>%s)', self.name, timediff, config.market_expiration_time)
+            self.depth = {'asks': [[0, 0]], 'bids': [[0, 0]]}
         return self.depth
 
     def convert_to_cny(self):
@@ -111,16 +109,8 @@ class Exchange_V2(object):
         depth = self.get_depth()
         res = {'ask': 0, 'bid': 0}
         if len(depth['asks']) > 0 and len(depth["bids"]) > 0:
-            res = {'ask': depth['asks'][0],
-                   'bid': depth['bids'][0]}
+            res = {'ask': depth['asks'][0], 'bid': depth['bids'][0]}
         return res
-
-    def sort_and_format(self, l, reverse=False):
-        l.sort(key=lambda x: float(x[0]), reverse=reverse)
-        r = []
-        for i in l:
-            r.append({'price': float(i[0]), 'amount': float(i[1])})
-        return r
 
     def sort_and_format_v2(self, l):
         r = []
@@ -136,7 +126,7 @@ class Exchange_V2(object):
     def update_depth(self):
         self.depth = self.exchange.fetch_order_book(self.pair_code, 25)
         # self.depth = self.format_depth(raw_depth)
-        print('update depth: ', self.depth)
+        print(self.exchange.id, self.pair_code, '--update depth: ', self.depth)
         return self.depth
 
     def buy(self, price, amount):

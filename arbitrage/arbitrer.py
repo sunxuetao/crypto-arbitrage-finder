@@ -3,10 +3,10 @@
 # Copyright (C) 2013, Maxime Biais <maxime@biais.org>
 # Copyright (C) 2016, Phil Song <songbohr@gmail.com>
 import ccxt
-
 import config
 import time
 import logging
+import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from exchange import Exchange_V2
@@ -15,14 +15,16 @@ from exchange import Exchange_V2
 def sigint_handler(signum, frame):
     global is_sigint_up
     is_sigint_up = True
-    print ('catched interrupt signal!')
+    print('catched interrupt signal!')
 
 is_sigint_up = False
+
 
 class Arbitrer(object):
     def __init__(self):
         self.markets = []
         self.observers = []
+        self.tickers = {}
         self.depths = {}
         self.ex_instances = []
         self.init_markets(config.markets)
@@ -37,6 +39,7 @@ class Arbitrer(object):
             try:
                 exchange_class = getattr(ccxt, exchange_id)
                 exchange = exchange_class()
+                exchange.timeout = 1000
                 ex = Exchange_V2(exchange)
                 self.ex_instances.append(ex)
             except (ImportError, AttributeError) as e:
@@ -161,7 +164,8 @@ class Arbitrer(object):
     def arbitrage_opportunity_v2(self, kmarket, ex1_id, asks, ex2_id, bids):
         perc = (bids[0][0] - asks[0][0]) / bids[0][0] * 100
         for observer in self.observers:
-            observer.opportunity(0, 0, asks[0], ex1_id, bids[0], ex2_id, perc, 0, 0)
+            observer.opportunity(0, 0, asks[0][0], ex1_id, bids[0][0], ex2_id, perc, 0, 0)
+
         profit, volume, buyprice, sellprice, weighted_buyprice, weighted_sellprice = \
             self.arbitrage_depth_opportunity_v2(kmarket, asks, bids)
         if volume == 0 or buyprice == 0:
@@ -180,19 +184,21 @@ class Arbitrer(object):
             depths[market][ex.get_ex_id()] = ex.get_depth()
         print('__get market depth v2:', depths)
 
-
     def update_depths_v2(self):
         depths = {}
         futures = []
         for ex in self.ex_instances:
             futures.append(self.threadpool.submit(self.__get_market_depth_v2, ex, depths))
-        wait(futures, timeout=20)
+        wait(futures, timeout=2)
         print("all depth: ", depths)
         return depths
 
-    def tickers_v2(self):
+    def get_tickers(self):
+        tickers = {}
         for ex in self.ex_instances:
-            logging.verbose("ticker: " + ex.get_ex_id() + " - " + str(ex.get_ticker()))
+            ex_tickers = ex.exchange.fetch_tickers(config.markets)
+            tickers[ex.get_ex_id()] = ex_tickers
+        return tickers
 
     def replay_history(self, directory):
         import os
@@ -211,6 +217,9 @@ class Arbitrer(object):
         for observer in self.observers:
             observer.begin_opportunity_finder(self.depths)
 
+        for kmarket in self.tickers:
+            self.cal_market_arbitrage_by_ticker(kmarket, self.tickers)
+
         for kmarket in self.depths:
             self.cal_market_arbitrage(kmarket, self.depths[kmarket])
 
@@ -226,12 +235,22 @@ class Arbitrer(object):
                 depth1 = depths[ex1_id]
                 depth2 = depths[ex2_id]
                 if depth1["asks"] and depth2["bids"] and len(depth1["asks"]) > 0 and len(depth2["bids"]) > 0:
-                    if float(depth1["asks"][0][0]) < float(depth2["bids"][0][0]):
+                    if (float(depth1["asks"][0][0]) > 0) \
+                            and (float(depth2["bids"][0][0]) > 0)\
+                            and (float(depth1["asks"][0][0]) < float(depth2["bids"][0][0])):
                         #1 buy 2 sell
                         self.arbitrage_opportunity_v2(kmarket, ex1_id, depth1["asks"], ex2_id, depth2["bids"])
-                    if float(depth1["bids"][0][0]) > float(depth2["asks"][0][0]):
+                    if (float(depth1["bids"][0][0]) > 0) \
+                            and (float(depth2["asks"][0][0]) > 0)\
+                            and (float(depth1["bids"][0][0]) > float(depth2["asks"][0][0])):
                         #1 sell 2 buy
                         self.arbitrage_opportunity_v2(kmarket, ex1_id, depth2["asks"], ex2_id, depth1["bids"])
+
+    def cal_market_arbitrage_by_ticker(self, kmarket, tickers):
+        df = pd.DataFrame(tickers)
+        df.index = df.index.rename('market')
+        df = df.stack()
+        df.index = df.index.rename('exchange', level=1)
 
     def terminate(self):
         for observer in self.observers:
@@ -271,9 +290,10 @@ class Arbitrer(object):
         # signal.signal(signal.SIGTERM, sigint_handler)
 
         while True:
-            self.depths = self.update_depths_v2()
-            print('total depths', self.depths)
-            self.tickers_v2()
+            #TODO read markets config
+            self.tickers = self.get_tickers()
+            # self.depths = self.update_depths_v2()
+            # print('total depths', self.depths)
             self.tick_v2()
             time.sleep(config.refresh_rate)
 
