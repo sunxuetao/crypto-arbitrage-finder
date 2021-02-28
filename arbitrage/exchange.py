@@ -112,6 +112,10 @@ class Exchange_V2(object):
             res = {'ask': depth['asks'][0], 'bid': depth['bids'][0]}
         return res
 
+    def get_tickers(self):
+        ex_tickers = self.exchange.fetch_tickers(config.markets)
+        return ex_tickers
+
     def sort_and_format_v2(self, l):
         r = []
         r.append({'price': l[0], 'amount': float(l[1])})

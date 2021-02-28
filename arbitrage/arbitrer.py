@@ -1,4 +1,4 @@
-#-*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 # Copyright (C) 2013, Maxime Biais <maxime@biais.org>
 # Copyright (C) 2016, Phil Song <songbohr@gmail.com>
@@ -7,6 +7,7 @@ import config
 import time
 import logging
 import pandas as pd
+import numpy as np
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from exchange import Exchange_V2
@@ -17,6 +18,7 @@ def sigint_handler(signum, frame):
     is_sigint_up = True
     print('catched interrupt signal!')
 
+
 is_sigint_up = False
 
 
@@ -24,7 +26,7 @@ class Arbitrer(object):
     def __init__(self):
         self.markets = []
         self.observers = []
-        self.tickers = {}
+        self.tickers = []
         self.depths = {}
         self.ex_instances = []
         self.init_markets(config.markets)
@@ -45,7 +47,6 @@ class Arbitrer(object):
             except (ImportError, AttributeError) as e:
                 print("%s exchange name is invalid: Ignored (you should check your config file)" % (exchange_id))
                 logging.warn("exception create exchange instance :%s" % e)
-
 
     def init_markets(self, _markets):
         logging.debug("_markets:%s" % _markets)
@@ -111,7 +112,7 @@ class Arbitrer(object):
                 w_sellprice = price
             else:
                 w_sellprice = (w_sellprice * (sell_total - amount) + price * amount) / sell_total
-        if abs(sell_total-buy_total) > 0.00001:
+        if abs(sell_total - buy_total) > 0.00001:
             logging.warn("sell_total=%s,buy_total=%s", sell_total, buy_total)
 
         profit = sell_total * w_sellprice - buy_total * w_buyprice
@@ -120,9 +121,9 @@ class Arbitrer(object):
     def get_max_depth(self, asks, bids):
         i = 0
         if len(bids) != 0 and \
-           len(asks) != 0:
+                len(asks) != 0:
             while asks[i][0] \
-                  < bids[0][0]:
+                    < bids[0][0]:
                 if i >= len(asks) - 1:
                     break
                 # logging.debug("i:%s,%s/%s,%s/%s", i, kask, self.depths[kask]["asks"][i][0],
@@ -132,9 +133,9 @@ class Arbitrer(object):
 
         j = 0
         if len(asks) != 0 and \
-           len(bids) != 0:
+                len(bids) != 0:
             while asks[0][0] \
-                  < bids[j][0]:
+                    < bids[j][0]:
                 if j >= len(bids) - 1:
                     break
                 # logging.debug("j:%s,%s/%s,%s/%s", j, kask, self.depths[kask]["asks"][0][0],
@@ -162,15 +163,16 @@ class Arbitrer(object):
         return best_profit, best_volume, asks[best_i][0], bids[best_j][0], best_w_buyprice, best_w_sellprice
 
     def arbitrage_opportunity_v2(self, kmarket, ex1_id, asks, ex2_id, bids):
-        perc = (bids[0][0] - asks[0][0]) / bids[0][0] * 100
+        perc = (bids - asks) / bids * 100
         for observer in self.observers:
-            observer.opportunity(0, 0, asks[0][0], ex1_id, bids[0][0], ex2_id, perc, 0, 0)
+            observer.opportunity(0, 0, asks, ex1_id[0], bids, ex2_id[0], perc, 0, 0)
+
 
         profit, volume, buyprice, sellprice, weighted_buyprice, weighted_sellprice = \
             self.arbitrage_depth_opportunity_v2(kmarket, asks, bids)
         if volume == 0 or buyprice == 0:
             return
-        perc2 = (weighted_sellprice-weighted_buyprice)/buyprice * 100
+        perc2 = (weighted_sellprice - weighted_buyprice) / buyprice * 100
         for observer in self.observers:
             observer.opportunity(
                 profit, volume, buyprice, ex1_id, sellprice, ex2_id, perc2, weighted_buyprice, weighted_sellprice)
@@ -193,12 +195,14 @@ class Arbitrer(object):
         print("all depth: ", depths)
         return depths
 
-    def get_tickers(self):
+    def get_all_tickers(self):
         tickers = {}
         for ex in self.ex_instances:
-            ex_tickers = ex.exchange.fetch_tickers(config.markets)
+            ex_tickers = ex.get_tickers()
             tickers[ex.get_ex_id()] = ex_tickers
-        return tickers
+
+        self.tickers = self.convert_tickers_to_arr(tickers)
+        return self.tickers
 
     def replay_history(self, directory):
         import os
@@ -217,40 +221,58 @@ class Arbitrer(object):
         for observer in self.observers:
             observer.begin_opportunity_finder(self.depths)
 
-        for kmarket in self.tickers:
-            self.cal_market_arbitrage_by_ticker(kmarket, self.tickers)
-
-        for kmarket in self.depths:
-            self.cal_market_arbitrage(kmarket, self.depths[kmarket])
+        for kmarket in self.get_markets_from_ticker(self.tickers):
+            arr = self.filter_array_by_market(kmarket, self.tickers)
+            self.cal_market_arbitrage(kmarket, arr)
 
         for observer in self.observers:
             observer.end_opportunity_finder()
 
-    def cal_market_arbitrage(self, kmarket, depths):
 
-        for ex1_id in depths:
-            for ex2_id in depths:
-                if ex1_id == ex2_id:  # same exchange
+    def cal_market_arbitrage(self, kmarket, arr_2):
+        # arr columns [exchange, market, 'bid', 'ask', 'timestamp', 'datetime']
+        for ex1_id in arr_2:
+            for ex2_id in arr_2:
+                if ex1_id[0] == ex2_id[0]:  # same exchange
                     continue
-                depth1 = depths[ex1_id]
-                depth2 = depths[ex2_id]
-                if depth1["asks"] and depth2["bids"] and len(depth1["asks"]) > 0 and len(depth2["bids"]) > 0:
-                    if (float(depth1["asks"][0][0]) > 0) \
-                            and (float(depth2["bids"][0][0]) > 0)\
-                            and (float(depth1["asks"][0][0]) < float(depth2["bids"][0][0])):
+                if ex1_id[3] and ex2_id[2]:
+                    if (float(ex1_id[3]) > 0) \
+                            and (float(ex2_id[2]) > 0) \
+                            and (float(ex1_id[3]) < float(ex2_id[2])):
+                        print('1 buy 2 sell', 'btc/usdt', ex1_id[0], ex1_id[3], ex2_id[0], ex2_id[2])
                         #1 buy 2 sell
-                        self.arbitrage_opportunity_v2(kmarket, ex1_id, depth1["asks"], ex2_id, depth2["bids"])
-                    if (float(depth1["bids"][0][0]) > 0) \
-                            and (float(depth2["asks"][0][0]) > 0)\
-                            and (float(depth1["bids"][0][0]) > float(depth2["asks"][0][0])):
+                        self.arbitrage_opportunity_v2(kmarket, ex1_id, ex1_id[3], ex2_id, ex2_id[2])
+                    if (float(ex1_id[2]) > 0) \
+                            and (float(ex2_id[3]) > 0) \
+                            and (float(ex1_id[2]) > float(ex2_id[3])):
                         #1 sell 2 buy
-                        self.arbitrage_opportunity_v2(kmarket, ex1_id, depth2["asks"], ex2_id, depth1["bids"])
+                        print('1 sell 2 buy','btc/usdt', ex1_id[0], ex2_id[3], ex2_id[0], ex1_id[2])
+                        self.arbitrage_opportunity_v2(kmarket, ex1_id, ex2_id[3], ex2_id, ex1_id[2])
 
-    def cal_market_arbitrage_by_ticker(self, kmarket, tickers):
-        df = pd.DataFrame(tickers)
-        df.index = df.index.rename('market')
-        df = df.stack()
-        df.index = df.index.rename('exchange', level=1)
+
+
+    def get_markets_from_ticker(tickers_arr):
+        return list(set(tickers_arr[:,1]))
+
+
+    def filter_array_by_market(kmarket, tickers_arr):
+        a = np.asarray(tickers_arr)
+        np(a[:,1])
+        mask = np.in1d(a[:, 1], filter)
+        return a[mask]
+
+    def convert_tickers_to_arr(tickers):
+        tickers_arr = []
+        for key in tickers:
+            t = tickers[key]
+            if isinstance(t, dict):
+                for k1 in t:
+                    t_info = t[k1]
+                    if isinstance(t, dict):
+                        arr = [key, k1, t_info['bid'], t_info['ask'], t_info['timestamp'], t_info['datetime']]
+                        tickers_arr.append(arr)
+        print(tickers_arr)
+        return tickers_arr
 
     def terminate(self):
         for observer in self.observers:
@@ -263,7 +285,7 @@ class Arbitrer(object):
         #
         # signal.signal(signal.SIGHUP, sigint_handler)
 
-        #以下那句在windows python2.4不通过,但在freebsd下通过
+        # 以下那句在windows python2.4不通过,但在freebsd下通过
         # signal.signal(signal.SIGHUP, sigint_handler)
 
         # signal.signal(signal.SIGTERM, sigint_handler)
@@ -278,20 +300,19 @@ class Arbitrer(object):
             if is_sigint_up:
                 # 中断时需要处理的代码
                 self.terminate()
-                print ("Exit")
+                print("Exit")
                 break
-
 
     def loop_v2(self):
         #
         # signal.signal(signal.SIGHUP, sigint_handler)
-        #以下那句在windows python2.4不通过,但在freebsd下通过
+        # 以下那句在windows python2.4不通过,但在freebsd下通过
         # signal.signal(signal.SIGHUP, sigint_handler)
         # signal.signal(signal.SIGTERM, sigint_handler)
 
         while True:
-            #TODO read markets config
-            self.tickers = self.get_tickers()
+            # TODO read markets config
+            self.tickers = self.get_all_tickers()
             # self.depths = self.update_depths_v2()
             # print('total depths', self.depths)
             self.tick_v2()
@@ -300,5 +321,5 @@ class Arbitrer(object):
             if is_sigint_up:
                 # 中断时需要处理的代码
                 self.terminate()
-                print ("Exit")
+                print("Exit")
                 break
