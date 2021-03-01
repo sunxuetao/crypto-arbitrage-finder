@@ -9,6 +9,7 @@ import logging
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, wait
+import Postgres_helper
 
 from exchange import Exchange_V2
 
@@ -33,6 +34,7 @@ class Arbitrer(object):
         self.init_exchanges(config.exchanges)
         self.init_observers(config.observers)
         self.threadpool = ThreadPoolExecutor(max_workers=10)
+        self.dbhelper = Postgres_helper
 
     def init_exchanges(self, _exchanges):
         logging.debug("_exchanges:%s" % _exchanges)
@@ -162,20 +164,15 @@ class Arbitrer(object):
                         w_buyprice, w_sellprice)
         return best_profit, best_volume, asks[best_i][0], bids[best_j][0], best_w_buyprice, best_w_sellprice
 
-    def arbitrage_opportunity_v2(self, kmarket, ex1_id, asks, ex2_id, bids):
-        perc = (bids - asks) / bids * 100
-        for observer in self.observers:
-            observer.opportunity(0, 0, asks, ex1_id[0], bids, ex2_id[0], perc, 0, 0)
-
-
+    def arbitrage_opportunity_v2(self, df):
         profit, volume, buyprice, sellprice, weighted_buyprice, weighted_sellprice = \
-            self.arbitrage_depth_opportunity_v2(kmarket, asks, bids)
+            self.arbitrage_depth_opportunity_v2(1, 1, 1)
         if volume == 0 or buyprice == 0:
             return
         perc2 = (weighted_sellprice - weighted_buyprice) / buyprice * 100
-        for observer in self.observers:
-            observer.opportunity(
-                profit, volume, buyprice, ex1_id, sellprice, ex2_id, perc2, weighted_buyprice, weighted_sellprice)
+        # for observer in self.observers:
+        #     observer.opportunity(
+        #         profit, volume, buyprice, ex1_id, sellprice, ex2_id, perc2, weighted_buyprice, weighted_sellprice)
 
     def __get_market_depth_v2(self, ex, depths):
         for market in self.markets:
@@ -221,38 +218,72 @@ class Arbitrer(object):
         for observer in self.observers:
             observer.begin_opportunity_finder(self.depths)
 
-        for kmarket in self.get_markets_from_ticker(self.tickers):
-            arr = self.filter_array_by_market(kmarket, self.tickers)
-            self.cal_market_arbitrage(kmarket, arr)
+        # for kmarket in self.get_markets_from_ticker(self.tickers):
+            # arr = self.filter_array_by_market(kmarket, self.tickers)
+
+        self.cal_market_arbitrage_v2(self.tickers)
 
         for observer in self.observers:
             observer.end_opportunity_finder()
 
 
-    def cal_market_arbitrage(self, kmarket, arr_2):
-        # arr columns [exchange, market, 'bid', 'ask', 'timestamp', 'datetime']
-        for ex1_id in arr_2:
-            for ex2_id in arr_2:
-                if ex1_id[0] == ex2_id[0]:  # same exchange
-                    continue
-                if ex1_id[3] and ex2_id[2]:
-                    if (float(ex1_id[3]) > 0) \
-                            and (float(ex2_id[2]) > 0) \
-                            and (float(ex1_id[3]) < float(ex2_id[2])):
-                        print('1 buy 2 sell', 'btc/usdt', ex1_id[0], ex1_id[3], ex2_id[0], ex2_id[2])
-                        #1 buy 2 sell
-                        self.arbitrage_opportunity_v2(kmarket, ex1_id, ex1_id[3], ex2_id, ex2_id[2])
-                    if (float(ex1_id[2]) > 0) \
-                            and (float(ex2_id[3]) > 0) \
-                            and (float(ex1_id[2]) > float(ex2_id[3])):
-                        #1 sell 2 buy
-                        print('1 sell 2 buy','btc/usdt', ex1_id[0], ex2_id[3], ex2_id[0], ex1_id[2])
-                        self.arbitrage_opportunity_v2(kmarket, ex1_id, ex2_id[3], ex2_id, ex1_id[2])
 
+    # def cal_market_arbitrage(self, kmarket, arr_2):
+    #     # arr columns [exchange, market, 'bid', 'ask', 'timestamp', 'datetime']
+    #     for ex1_id in arr_2:
+    #         for ex2_id in arr_2:
+    #             if ex1_id[0] == ex2_id[0]:  # same exchange
+    #                 continue
+    #             if ex1_id[3] and ex2_id[2]:
+    #                 if (float(ex1_id[3]) > 0) \
+    #                         and (float(ex2_id[2]) > 0) \
+    #                         and (float(ex1_id[3]) < float(ex2_id[2])):
+    #                     print('1 buy 2 sell', 'btc/usdt', ex1_id[0], ex1_id[3], ex2_id[0], ex2_id[2])
+    #                     #1 buy 2 sell
+    #                     self.arbitrage_opportunity_v2(kmarket, ex1_id, ex1_id[3], ex2_id, ex2_id[2])
+    #                 if (float(ex1_id[2]) > 0) \
+    #                         and (float(ex2_id[3]) > 0) \
+    #                         and (float(ex1_id[2]) > float(ex2_id[3])):
+    #                     #1 sell 2 buy
+    #                     print('1 sell 2 buy','btc/usdt', ex1_id[0], ex2_id[3], ex2_id[0], ex1_id[2])
+    #                     self.arbitrage_opportunity_v2(kmarket, ex1_id, ex2_id[3], ex2_id, ex1_id[2])
+
+
+    def cal_market_arbitrage_v2(self, tickers):
+        # 遍历嵌套字典
+        df = pd.DataFrame.from_dict({(i, j): tickers[i][j]
+                                     for i in tickers.keys()
+                                     for j in tickers[i].keys()},
+                                    orient='index')
+        # index转列
+        df.reset_index(inplace=True)
+        # 选取所需要的列
+        df = df.loc[:, ['level_0', 'level_1', 'bid', 'ask', 'timestamp', 'datetime']]
+        # 修改列名
+        df.rename(columns={'level_0': 'exchanger', 'level_1': 'ticker'}, inplace=True)
+        # group ticker，取得所有交易所相应ticker的最大值及最小值，并显示交易所名称
+        df['max_count'] = df.groupby('ticker')['bid'].transform('max')
+        df['min_count'] = df.groupby('ticker')['ask'].transform('min')
+        # 计算最大值-最小值的百分比
+        df['percentage'] = df.apply(lambda x: ((x['max_count'] - x['min_count']) / x['max_count']) * 100, axis=1)
+        df = df[(df['percentage'] > 0) & ((df['bid'] == df['max_count']) | (df['ask'] == df['min_count']))]
+
+        def function(a, b):
+            if a == b:
+                return 1
+            else:
+                return 0
+
+        df['sell'] = df.apply(lambda x: function(x['bid'], x['max_count']), axis=1)
+        df['buy'] = df.apply(lambda x: function(x['ask'], x['min_count']), axis=1)
+        ls = df.reset_index().to_json(orient='records')
+        logging.info(ls)
+
+        self.arbitrage_opportunity_v2(df)
 
 
     def get_markets_from_ticker(tickers_arr):
-        return list(set(tickers_arr[:,1]))
+            return list(set(tickers_arr[:,1]))
 
 
     def filter_array_by_market(kmarket, tickers_arr):

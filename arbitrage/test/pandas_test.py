@@ -3,6 +3,8 @@ import numpy as np
 import ccxt
 from pandas import json_normalize
 
+from Postgres_helper import PostgresHelper
+
 tickers = {}
 # ex_kr = ccxt.kraken()
 # ex_kr.timeout = 5000
@@ -155,7 +157,6 @@ df = pd.DataFrame.from_dict({(i, j): tickers[i][j]
                              for i in tickers.keys()
                              for j in tickers[i].keys()},
                             orient='index')
-
 # index转列
 df.reset_index(inplace=True)
 
@@ -164,13 +165,6 @@ df = df.loc[:, ['level_0', 'level_1', 'bid', 'ask', 'timestamp', 'datetime']]
 
 # 修改列名
 df.rename(columns={'level_0': 'exchanger', 'level_1': 'ticker'}, inplace=True)
-
-# group ticker，取得所有交易所相应ticker的最大值及最小值。
-# 此方法显示不了交易所名称
-# df = df.groupby(['ticker']).agg(
-#     min_count=pd.NamedAgg(column='bid', aggfunc='min'),
-#     max_count=pd.NamedAgg(column='ask', aggfunc='max')
-# ).reset_index(drop=False)
 
 # group ticker，取得所有交易所相应ticker的最大值及最小值，并显示交易所名称
 df['max_count'] = df.groupby('ticker')['bid'].transform('max')
@@ -183,6 +177,7 @@ print(df)
 df = df[(df['percentage'] > 0) & ((df['bid'] == df['max_count']) | (df['ask'] == df['min_count']))]
 # print(df1)
 
+
 def function(a, b):
     if a == b:
         return 1
@@ -190,13 +185,14 @@ def function(a, b):
         return 0
 
 
-df['sell'] = df.apply(lambda x : function(x['bid'], x['max_count']), axis=1)
-df['buy'] = df.apply(lambda x : function(x['ask'], x['min_count']), axis=1)
-# df1['sell'] = df[df['bid'] == df['max_count']]
-# df1['buy'] = df[df['ask'] == df['min_count']]
+df['sell'] = df.apply(lambda x: function(x['bid'], x['max_count']), axis=1)
+df['buy'] = df.apply(lambda x: function(x['ask'], x['min_count']), axis=1)
 print(df)
 ls = df.reset_index().to_json(orient='records')
 print(ls)
+h = PostgresHelper()
+sql = "INSERT INTO arbitrage_opportunities (arbitrage_pair) VALUES ('"+ls+"')"
+h.insert(sql)
 
 
 # 遍历ticker, 判断搬砖可能性
