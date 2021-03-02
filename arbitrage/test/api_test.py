@@ -17,16 +17,16 @@ ex_kr.timeout = 2000
 
 # print(ccxt.cex().fetch_order_book('BTC/USD', limit))
 
-tickers = ex_kr.fetch_tickers([
-    "ETH/USDT",
-    "BTC/USDT",
-    "LTC/USDT",
-    "EOS/USDT",
-    "BCH/USDT"
-])
-print(tickers)
+# tickers = ex_kr.fetch_tickers([
+#     "ETH/USDT",
+#     "BTC/USDT",
+#     "LTC/USDT",
+#     "EOS/USDT",
+#     "BCH/USDT"
+# ])
+# print(tickers)
 # print(ex_blue.countries)
 # print(ex_kr.countries)
 
-# book3 = ccxt.bittrex().fetch_order_book('BTC/USD', 25)
-# print(book3)
+book3 = ccxt.bittrex().fetch_order_book('BTC/USD', 25)
+print(book3)

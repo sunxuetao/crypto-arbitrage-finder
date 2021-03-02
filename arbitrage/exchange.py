@@ -129,9 +129,11 @@ class Exchange_V2(object):
     ## Abstract methods
     def update_depth(self):
         self.depth = self.exchange.fetch_order_book(self.pair_code, 25)
-        # self.depth = self.format_depth(raw_depth)
         print(self.exchange.id, self.pair_code, '--update depth: ', self.depth)
         return self.depth
+
+    def fetch_depth(self, pair_code):
+        return self.exchange.fetch_order_book(pair_code, 25)
 
     def buy(self, price, amount):
         pass

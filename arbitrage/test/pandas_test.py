@@ -3,44 +3,6 @@ import numpy as np
 import ccxt
 from pandas import json_normalize
 
-from Postgres_helper import PostgresHelper
-
-tickers = {}
-# ex_kr = ccxt.kraken()
-# ex_kr.timeout = 5000
-# t1 = ex_kr.fetch_tickers([
-#     "ETH/USDT",
-#     "BTC/USDT",
-#     "LTC/USDT",
-#     "EOS/USDT",
-#     "BCH/USDT"
-# ])
-#
-# tickers[ex_kr.id] = t1
-#
-# bt_kr = ccxt.bittrex()
-# bt_kr.timeout = 5000
-# t2 = bt_kr.fetch_tickers([
-#     "ETH/USDT",
-#     "BTC/USDT",
-#     "LTC/USDT",
-#     "EOS/USDT",
-#     "BCH/USDT"
-# ])
-# tickers[bt_kr.id] = t2
-#
-#
-# ex_li = ccxt.liquid()
-# ex_li.timeout = 5000
-# t3 = ex_li.fetch_tickers([
-#     "ETH/USDT",
-#     "BTC/USDT",
-#     "LTC/USDT",
-#     "EOS/USDT",
-#     "BCH/USDT"
-# ])
-# tickers[ex_li.id] = t3
-
 tickers = {'kraken': {
     'BCH/USDT': {'symbol': 'BCH/USDT', 'timestamp': 1614402846493, 'datetime': '2021-02-27T05:14:06.493Z',
                  'high': 507.43, 'low': 457.54, 'bid': 494.08, 'bidVolume': None, 'ask': 495.01, 'askVolume': None,
@@ -52,7 +14,7 @@ tickers = {'kraken': {
                           'p': ['488.528645', '485.239395'], 't': [47, 277], 'l': ['486.020000', '457.540000'],
                           'h': ['499.190000', '507.430000'], 'o': '487.180000'}},
     'EOS/USDT': {'symbol': 'EOS/USDT', 'timestamp': 1614402846493, 'datetime': '2021-02-27T05:14:06.493Z',
-                 'high': 3.757, 'low': 3.4263, 'bid': 3.6963, 'bidVolume': None, 'ask': 3.7015, 'askVolume': None,
+                 'high': 3.757, 'low': 3.4263, 'bid': 4.6963, 'bidVolume': None, 'ask': 3.7015, 'askVolume': None,
                  'vwap': 3.625613, 'open': 3.6026, 'close': 3.6615, 'last': 3.6615, 'previousClose': None,
                  'change': None, 'percentage': None, 'average': None, 'baseVolume': 37844.49712009,
                  'quoteVolume': 137209.50073706088,
@@ -164,11 +126,11 @@ df.reset_index(inplace=True)
 df = df.loc[:, ['level_0', 'level_1', 'bid', 'ask', 'timestamp', 'datetime']]
 
 # 修改列名
-df.rename(columns={'level_0': 'exchanger', 'level_1': 'ticker'}, inplace=True)
+df.rename(columns={'level_0': 'exchanger', 'level_1': 'market'}, inplace=True)
 
-# group ticker，取得所有交易所相应ticker的最大值及最小值，并显示交易所名称
-df['max_count'] = df.groupby('ticker')['bid'].transform('max')
-df['min_count'] = df.groupby('ticker')['ask'].transform('min')
+# group market，取得所有交易所相应market的最大值及最小值，并显示交易所名称
+df['max_count'] = df.groupby('market')['bid'].transform('max')
+df['min_count'] = df.groupby('market')['ask'].transform('min')
 
 # 计算最大值-最小值的百分比
 df['percentage'] = df.apply(lambda x: ((x['max_count'] - x['min_count']) / x['max_count']) * 100, axis=1)
@@ -190,10 +152,16 @@ df['buy'] = df.apply(lambda x: function(x['ask'], x['min_count']), axis=1)
 print(df)
 ls = df.reset_index().to_json(orient='records')
 print(ls)
-h = PostgresHelper()
-sql = "INSERT INTO arbitrage_opportunities (arbitrage_pair) VALUES ('"+ls+"')"
-h.insert(sql)
+# h = PostgresHelper()
+# sql = "INSERT INTO arbitrage_opportunities (arbitrage_pair) VALUES ('"+ls+"')"
+# h.insert(sql)
+df = df.sort_values(by='market')
+print(df)
+markets = list(set(df['market'].values))
 
+for market in markets:
+    sub = df[df['market'] == market]
+    print(sub)
 
 # 遍历ticker, 判断搬砖可能性
 # group = df.groupby(['ticker', 'percentage']).groups
