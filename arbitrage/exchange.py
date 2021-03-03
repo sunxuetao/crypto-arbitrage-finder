@@ -150,7 +150,7 @@ class Exchange_V2(object):
         try:
             depth = self.exchange.fetch_order_book(pair_code, 25)
         except BaseException as e:
-            print("%s market name is invalid: Ignored (you should check your config file)" % (self.pair_code))
+            print("%s market name is invalid: Ignored (you should check your config file)" % (pair_code))
             logging.warn("exception import:%s" % e)
 
         return depth
