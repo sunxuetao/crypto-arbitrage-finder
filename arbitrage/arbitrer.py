@@ -282,6 +282,7 @@ class Arbitrer(object):
             else:
                 return 0
 
+        logging.debug('before max count cal: ', df)
         df['sell'] = df.apply(lambda x: function(x['bid'], x['max_count']), axis=1)
         df['buy'] = df.apply(lambda x: function(x['ask'], x['min_count']), axis=1)
         ls = df.reset_index().to_json(orient='records')
