@@ -179,6 +179,7 @@ class Arbitrer(object):
         depth1 = ex1.fetch_depth(kmarket)
         depth2 = ex2.fetch_depth(kmarket)
 
+        logging.debug('depth1', depth1, 'depth2', depth2)
         profit, volume, buyprice, sellprice, weighted_buyprice, weighted_sellprice = \
             self.arbitrage_depth_opportunity_v2(kmarket, depth1['asks'], depth2['bids'])
         if volume == 0 or buyprice == 0:
@@ -262,11 +263,17 @@ class Arbitrer(object):
         df = df.loc[:, ['level_0', 'level_1', 'bid', 'ask', 'timestamp', 'datetime']]
         # 修改列名
         df.rename(columns={'level_0': 'exchanger', 'level_1': 'market'}, inplace=True)
+        # 去除ccxt 返回的价格为0的数据
+        df = df[(df['bid'] > 0.00001) | (df['ask'] > 0.00001)]
         # group ticker，取得所有交易所相应ticker的最大值及最小值，并显示交易所名称
         df['max_count'] = df.groupby('market')['bid'].transform('max')
         df['min_count'] = df.groupby('market')['ask'].transform('min')
         # 计算最大值-最小值的百分比
-        df['percentage'] = df.apply(lambda x: ((x['max_count'] - x['min_count']) / x['max_count']) * 100, axis=1)
+        try:
+            df['percentage'] = df.apply(lambda x: ((x['max_count'] - x['min_count']) / x['max_count']) * 100, axis=1)
+        except ZeroDivisionError as e:
+            logging.debug('divide zero', df)
+
         df = df[(df['percentage'] > 0) & ((df['bid'] == df['max_count']) | (df['ask'] == df['min_count']))]
 
         def function(a, b):
