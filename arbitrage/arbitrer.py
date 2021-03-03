@@ -35,8 +35,8 @@ class Arbitrer(object):
         self.init_markets(config.markets)
         self.init_exchanges(config.exchanges)
         self.init_observers(config.observers)
+        self.init_dbconn()
         self.threadpool = ThreadPoolExecutor(max_workers=10)
-        self.dbhelper = Postgres_helper
 
     def init_exchanges(self, _exchanges):
         logging.debug("_exchanges:%s" % _exchanges)
@@ -76,6 +76,9 @@ class Arbitrer(object):
             except (ImportError, AttributeError) as e:
                 print("%s observer name is invalid: Ignored (you should check your config file)" % (observer_name))
                 # print(e)
+
+    def init_dbconn(self):
+        self.dbhelper = Postgres_helper.PostgresHelper()
 
     def get_profit_for(self, mi, mj, asks, bids):
         if asks[mi][0] >= bids[mj][0]:
@@ -193,9 +196,8 @@ class Arbitrer(object):
             'weighted_sellprice': weighted_sellprice,
         }
         ls = json.dumps(profit_item)
-        h = Postgres_helper.PostgresHelper()
         sql = "INSERT INTO profit (profit) VALUES ('"+ls+"')"
-        h.insert(sql)
+        self.dbhelper.insert(sql)
         for observer in self.observers:
             observer.opportunity(
                 profit, volume, buyprice, buy_ex_id, sellprice, sell_ex_id, perc2, weighted_buyprice, weighted_sellprice)
@@ -278,9 +280,8 @@ class Arbitrer(object):
         ls = df.reset_index().to_json(orient='records')
         logging.info(ls)
         # 插入数据库
-        h = Postgres_helper.PostgresHelper()
         sql = "INSERT INTO arbitrage_opportunities (arbitrage_pair) VALUES ('"+ls+"')"
-        h.insert(sql)
+        self.dbhelper.insert(sql)
         for market in list(set(df['market'].values)):
             self.arbitrage_opportunity_v2(market, df[df['market'] == market])
 

@@ -30,7 +30,6 @@ class PostgresHelper:
                                         port=dbconfig.PORT)
             # create table
             self._cur = self._connect.cursor()
-            logging.info(" Connected to Postgres database [ {db} ]...")
             return True
         except Exception as e:
             logging.error(" Connect Postgres exception : \n{e}\n")
