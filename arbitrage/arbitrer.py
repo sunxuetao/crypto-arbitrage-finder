@@ -29,7 +29,7 @@ class Arbitrer(object):
     def __init__(self):
         self.markets = []
         self.observers = []
-        self.tickers = []
+        self.tickers = {}
         self.depths = {}
         self.ex_instances = {}
         self.init_markets(config.markets)
@@ -168,13 +168,13 @@ class Arbitrer(object):
 
     def arbitrage_opportunity_v2(self, kmarket, df):
         # 1 buy 2 sell
-        buy_ex_id = df[df['buy'] == 1]['exchanger']
-        sell_ex_id = df[df['sell'] == 1]['exchanger']
+        buy_ex_id = df[df['buy'] == 1]['exchanger'].values[0]
+        sell_ex_id = df[df['sell'] == 1]['exchanger'].values[0]
         ex1 = self.ex_instances[buy_ex_id]
         ex2 = self.ex_instances[sell_ex_id]
         # 1 asks, 2 bids
-        depth1 = ex1.exchange.fetch_depth(kmarket)
-        depth2 = ex2.exchange.fetch_depth(kmarket)
+        depth1 = ex1.fetch_depth(kmarket)
+        depth2 = ex2.fetch_depth(kmarket)
 
         profit, volume, buyprice, sellprice, weighted_buyprice, weighted_sellprice = \
             self.arbitrage_depth_opportunity_v2(kmarket, depth1['asks'], depth2['bids'])
@@ -223,7 +223,8 @@ class Arbitrer(object):
             ex_tickers = ex.get_tickers()
             tickers[ex.get_ex_id()] = ex_tickers
 
-        return self.tickers
+        self.tickers = tickers
+        return tickers
 
     def replay_history(self, directory):
         import os
@@ -281,7 +282,7 @@ class Arbitrer(object):
         sql = "INSERT INTO arbitrage_opportunities (arbitrage_pair) VALUES ('"+ls+"')"
         h.insert(sql)
         for market in list(set(df['market'].values)):
-            self.arbitrage_opportunity_v2(df[df['market'] == market])
+            self.arbitrage_opportunity_v2(market, df[df['market'] == market])
 
     @staticmethod
     def get_markets_from_ticker(tickers_arr):

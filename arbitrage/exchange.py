@@ -4,6 +4,9 @@ import urllib.error
 import urllib.parse
 import logging
 import sys
+
+import ccxt
+
 import config
 from fiatconverter import FiatConverter
 from utils import log_exception
@@ -113,7 +116,12 @@ class Exchange_V2(object):
         return res
 
     def get_tickers(self):
-        ex_tickers = self.exchange.fetch_tickers(config.markets)
+        ex_tickers = {}
+        try:
+            ex_tickers = self.exchange.fetch_tickers(config.markets)
+        except BaseException as e:
+            print("%s market name is invalid: Ignored (you should check your config file)" % (self.get_ex_id()))
+            logging.warn("exception import:%s" % e)
         return ex_tickers
 
     def sort_and_format_v2(self, l):
@@ -128,12 +136,24 @@ class Exchange_V2(object):
 
     ## Abstract methods
     def update_depth(self):
-        self.depth = self.exchange.fetch_order_book(self.pair_code, 25)
-        print(self.exchange.id, self.pair_code, '--update depth: ', self.depth)
+        try:
+            self.depth = self.exchange.fetch_order_book(self.pair_code, 25)
+            print(self.exchange.id, self.pair_code, '--update depth: ', self.depth)
+        except BaseException as e:
+            print("%s market name is invalid: Ignored (you should check your config file)" % (self.pair_code))
+            logging.warn("exception import:%s" % e)
+
         return self.depth
 
     def fetch_depth(self, pair_code):
-        return self.exchange.fetch_order_book(pair_code, 25)
+        depth = {}
+        try:
+            depth = self.exchange.fetch_order_book(pair_code, 25)
+        except BaseException as e:
+            print("%s market name is invalid: Ignored (you should check your config file)" % (self.pair_code))
+            logging.warn("exception import:%s" % e)
+
+        return depth
 
     def buy(self, price, amount):
         pass
