@@ -3,3 +3,4 @@ zmq
 thriftpy
 ccxt
 six
+psycopg2
