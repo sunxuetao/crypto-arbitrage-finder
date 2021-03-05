@@ -246,7 +246,8 @@ class Arbitrer(object):
         for observer in self.observers:
             observer.begin_opportunity_finder(self.depths)
 
-        self.cal_market_arbitrage_v2(self.tickers)
+        if bool(self.tickers):
+            self.cal_market_arbitrage_v2(self.tickers)
 
         for observer in self.observers:
             observer.end_opportunity_finder()
