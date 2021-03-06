@@ -191,6 +191,7 @@ class Arbitrer(object):
         perc2 = (weighted_sellprice - weighted_buyprice) / buyprice * 100
         profit_item = {
             'profit': profit,
+            'market': kmarket,
             'volume': volume,
             'buyprice': buyprice,
             'buy_ex_id': buy_ex_id,
