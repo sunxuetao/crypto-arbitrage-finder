@@ -262,9 +262,7 @@ class Arbitrer(object):
                                      for i in tickers.keys()
                                      for j in tickers[i].keys()},
                                     orient='index')
-        if df.empty | (len(df) == 0) | (len(df.index) == 0):
-            print('dataframe is empty')
-            return
+
         # index转列
         df.reset_index(inplace=True)
         # 选取所需要的列
@@ -291,7 +289,9 @@ class Arbitrer(object):
             else:
                 return 0
 
-        print('before sell cal: ', df)
+        if df.empty | (len(df) == 0) | (len(df.index) == 0):
+            print('dataframe is empty')
+            return
         df['sell'] = df.apply(lambda x: function(x['bid'], x['max_count']), axis=1)
         df['buy'] = df.apply(lambda x: function(x['ask'], x['min_count']), axis=1)
         ls = df.reset_index().to_json(orient='records')
