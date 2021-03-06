@@ -201,8 +201,6 @@ class Arbitrer(object):
             'weighted_sellprice': weighted_sellprice,
         }
         ls = json.dumps(profit_item)
-        logging.info("profit: %f coin: %s with volume: %f currency: %s - buy at %.4f (%s) sell at %.4f (%s) ~%.2f%%" \
-                     % (profit, coin, volume, currency, buyprice, buy_ex_id, sellprice, sell_ex_id, perc2))
         if perc2 > 0.006:
             sql = "INSERT INTO profit (profit) VALUES ('"+ls+"')"
             self.dbhelper.insert(sql)
@@ -264,6 +262,9 @@ class Arbitrer(object):
                                      for i in tickers.keys()
                                      for j in tickers[i].keys()},
                                     orient='index')
+        if df.empty:
+            print('dataframe is empty')
+            return
         # index转列
         df.reset_index(inplace=True)
         # 选取所需要的列
@@ -290,6 +291,7 @@ class Arbitrer(object):
             else:
                 return 0
 
+        print('before sell cal: ', df)
         df['sell'] = df.apply(lambda x: function(x['bid'], x['max_count']), axis=1)
         df['buy'] = df.apply(lambda x: function(x['ask'], x['min_count']), axis=1)
         ls = df.reset_index().to_json(orient='records')
