@@ -262,7 +262,7 @@ class Arbitrer(object):
                                      for i in tickers.keys()
                                      for j in tickers[i].keys()},
                                     orient='index')
-        if df.empty | (len(df) == 0):
+        if df.empty | (len(df) == 0) | (len(df.index) == 0):
             print('dataframe is empty')
             return
         # index转列
