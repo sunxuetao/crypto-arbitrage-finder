@@ -3,7 +3,7 @@ from .observer import Observer
 
 
 class Logger(Observer):
-    def opportunity(self, profit, volume, buyprice, kask, sellprice, kbid, perc,
+    def opportunity(self, profit, coin, volume, currency, buyprice, kask, sellprice, kbid, perc2,
                     weighted_buyprice, weighted_sellprice):
-        logging.info("profit: %f CNY with volume: %f BTC - buy at %.4f (%s) sell at %.4f (%s) ~%.2f%%" \
-            % (profit, volume, buyprice, kask, sellprice, kbid, perc))
+        logging.info("profit: %f coin: %s with volume: %f currency: %s - buy at %.4f (%s) sell at %.4f (%s) ~%.2f%%" \
+                     % (profit, coin, volume, currency, buyprice, kask, sellprice, kbid, perc2))

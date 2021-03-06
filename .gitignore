@@ -61,3 +61,4 @@ stata/
 *.sublime-*
 
 
+/arbitrage/dbconfig.py

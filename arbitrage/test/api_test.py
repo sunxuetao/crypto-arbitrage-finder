@@ -11,9 +11,9 @@ ex_kr.timeout = 2000
 # print(book)
 
 
-# ex_blue = ccxt.bittrex()
-# book2 = ex_blue.fetch_order_book('BTC/USDT', 1)
-# print(book2)
+ex_bittrex = ccxt.bittrex()
+book2 = ex_bittrex.fetch_order_book('BTC/USDT', 10)
+print(book2)
 
 # print(ccxt.cex().fetch_order_book('BTC/USD', limit))
 

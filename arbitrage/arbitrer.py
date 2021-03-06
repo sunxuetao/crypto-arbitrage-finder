@@ -170,6 +170,8 @@ class Arbitrer(object):
         return best_profit, best_volume, asks[best_i][0], bids[best_j][0], best_w_buyprice, best_w_sellprice
 
     def arbitrage_opportunity_v2(self, kmarket, df):
+        coin = kmarket.split('/')[0]
+        currency = kmarket.split('/')[1]
         # 1 buy 2 sell
         buy_ex_id = df[df['buy'] == 1]['exchanger'].values[0]
         sell_ex_id = df[df['sell'] == 1]['exchanger'].values[0]
@@ -180,6 +182,8 @@ class Arbitrer(object):
         depth2 = ex2.fetch_depth(kmarket)
 
         logging.debug('depth1', depth1, 'depth2', depth2)
+        if (not bool(depth1)) | (not bool(depth2)):
+            return
         profit, volume, buyprice, sellprice, weighted_buyprice, weighted_sellprice = \
             self.arbitrage_depth_opportunity_v2(kmarket, depth1['asks'], depth2['bids'])
         if volume == 0 or buyprice == 0:
@@ -197,11 +201,14 @@ class Arbitrer(object):
             'weighted_sellprice': weighted_sellprice,
         }
         ls = json.dumps(profit_item)
-        sql = "INSERT INTO profit (profit) VALUES ('"+ls+"')"
-        self.dbhelper.insert(sql)
-        for observer in self.observers:
-            observer.opportunity(
-                profit, volume, buyprice, buy_ex_id, sellprice, sell_ex_id, perc2, weighted_buyprice, weighted_sellprice)
+        logging.info("profit: %f coin: %s with volume: %f currency: %s - buy at %.4f (%s) sell at %.4f (%s) ~%.2f%%" \
+                     % (profit, coin, volume, currency, buyprice, buy_ex_id, sellprice, sell_ex_id, perc2))
+        if perc2 > 0.006:
+            sql = "INSERT INTO profit (profit) VALUES ('"+ls+"')"
+            self.dbhelper.insert(sql)
+            for observer in self.observers:
+                observer.opportunity(
+                    profit, coin, volume, currency, buyprice, buy_ex_id, sellprice, sell_ex_id, perc2, weighted_buyprice, weighted_sellprice)
 
     def __get_market_depth_v2(self, ex, depths):
         for market in self.markets:
@@ -217,7 +224,6 @@ class Arbitrer(object):
         for ex in self.ex_instances.values():
             futures.append(self.threadpool.submit(self.__get_market_depth_v2, ex, depths))
         wait(futures, timeout=2)
-        print("all depth: ", depths)
         return depths
 
     def get_all_tickers(self):
@@ -265,7 +271,8 @@ class Arbitrer(object):
         # 修改列名
         df.rename(columns={'level_0': 'exchanger', 'level_1': 'market'}, inplace=True)
         # 去除ccxt 返回的价格为0的数据
-        df = df[(df['bid'] > 0.00001) | (df['ask'] > 0.00001)]
+        df = df[(df['bid'] > 0.00001) & (df['ask'] > 0.00001)]
+        logging.debug('df', df)
         # group ticker，取得所有交易所相应ticker的最大值及最小值，并显示交易所名称
         df['max_count'] = df.groupby('market')['bid'].transform('max')
         df['min_count'] = df.groupby('market')['ask'].transform('min')
@@ -283,7 +290,6 @@ class Arbitrer(object):
             else:
                 return 0
 
-        logging.debug('before max count cal: ', df)
         df['sell'] = df.apply(lambda x: function(x['bid'], x['max_count']), axis=1)
         df['buy'] = df.apply(lambda x: function(x['ask'], x['min_count']), axis=1)
         ls = df.reset_index().to_json(orient='records')
