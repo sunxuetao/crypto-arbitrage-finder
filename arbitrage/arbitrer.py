@@ -201,7 +201,7 @@ class Arbitrer(object):
             'weighted_sellprice': weighted_sellprice,
         }
         ls = json.dumps(profit_item)
-        if perc2 > 0.006:
+        if perc2 > 0.6:
             sql = "INSERT INTO profit (profit) VALUES ('"+ls+"')"
             self.dbhelper.insert(sql)
             for observer in self.observers:
