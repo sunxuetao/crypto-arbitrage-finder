@@ -120,7 +120,7 @@ class Exchange_V2(object):
         try:
             ex_tickers = self.exchange.fetch_tickers(config.markets)
         except BaseException as e:
-            print("%s market name is invalid: Ignored (you should check your config file)" % (self.get_ex_id()))
+            print("%s get tickers error: e" % (self.get_ex_id()))
             logging.warn("exception import:%s" % e)
         return ex_tickers
 
@@ -134,13 +134,12 @@ class Exchange_V2(object):
         asks = self.sort_and_format_v2(depth['asks'])
         return {'asks': asks, 'bids': bids}
 
-    ## Abstract methods
     def update_depth(self):
         try:
             self.depth = self.exchange.fetch_order_book(self.pair_code, 25)
             print(self.exchange.id, self.pair_code, '--update depth: ', self.depth)
         except BaseException as e:
-            print("%s market name is invalid: Ignored (you should check your config file)" % (self.pair_code))
+            print("%s fetch order book error" % (self.pair_code))
             logging.warn("exception import:%s" % e)
 
         return self.depth
@@ -150,7 +149,7 @@ class Exchange_V2(object):
         try:
             depth = self.exchange.fetch_order_book(pair_code, 25)
         except BaseException as e:
-            print("%s market name is invalid: Ignored (you should check your config file)" % (pair_code))
+            print("%s fetch order book error" % (pair_code))
             logging.warn("exception import:%s" % e)
 
         return depth
