@@ -1,9 +1,10 @@
 markets = [
-    "LTC/USDT",
-    "EOS/USDT",
-    "CRO/USDT"
+"ETH/USDT",
+"BTC/USDT",
+"LTC/USDT",
+"EOS/USDT"
 ]
-exchanges = ['huobipro', 'gateio', 'okex']
+exchanges=['bittrex', 'kraken', 'liquid', 'bleutrade']
 # observers if any
 # ["Logger", "DetailedLogger", "TraderBot", "TraderBotSim", "HistoryDumper", "Emailer", "SpecializedTraderBot"]
 observers = ["Logger"]
@@ -13,7 +14,7 @@ market_expiration_time = 120  # in seconds: 2 minutes
 refresh_rate = 5
 
 trade_wait = 10
-
+profit_perc = 1 # 1 - 100 percent
 
 MAKER_TRADE_ENABLE = False
 TAKER_TRADE_ENABLE = True
