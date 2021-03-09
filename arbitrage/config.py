@@ -1,10 +1,13 @@
 markets = [
-"ETH/USDT",
-"BTC/USDT",
-"LTC/USDT",
-"EOS/USDT"
+    "NEO/USDT",
+    "XTZ/USDT",
+    "LTC/USDT",
+    "EOS/USDT",
+    "ETC/USDT",
+    "DASH/USDT",
+    "ZIL/USDT"
 ]
-exchanges=['bittrex', 'kraken', 'liquid', 'bleutrade']
+exchanges=['bittrex', 'bitflyer', 'liquid', 'gateio', 'zb', 'bitfinex']
 # observers if any
 # ["Logger", "DetailedLogger", "TraderBot", "TraderBotSim", "HistoryDumper", "Emailer", "SpecializedTraderBot"]
 observers = ["Logger"]
